@@ -1,0 +1,182 @@
+name: Generate Release Notes
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  generate-release-notes:
+    name: Generate and Update Release Notes
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Get previous tag
+      id: previoustag
+      run: |
+        PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+        echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+        echo "Previous tag: $PREVIOUS_TAG"
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        PREVIOUS_TAG=${{ steps.previoustag.outputs.previous_tag }}
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          COMMIT_RANGE="$CURRENT_TAG"
+        else
+          COMMIT_RANGE="$PREVIOUS_TAG..$CURRENT_TAG"
+        fi
+        
+        echo "## 🚀 What's Changed" > CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Features
+        echo "### ✨ Features" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^feat" --grep="^feature" >> CHANGELOG.md || echo "No new features" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Bug Fixes
+        echo "### 🐛 Bug Fixes" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^fix" >> CHANGELOG.md || echo "No bug fixes" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Performance Improvements
+        echo "### ⚡ Performance Improvements" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^perf" >> CHANGELOG.md || echo "No performance improvements" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Refactoring
+        echo "### ♻️ Code Refactoring" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^refactor" >> CHANGELOG.md || echo "No refactoring" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Documentation
+        echo "### 📝 Documentation" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^docs" >> CHANGELOG.md || echo "No documentation updates" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Dependencies
+        echo "### 📦 Dependencies" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="^build" --grep="^deps" >> CHANGELOG.md || echo "No dependency updates" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Breaking Changes
+        echo "### ⚠️ BREAKING CHANGES" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"- %s (%h) by @%an" --grep="BREAKING CHANGE" >> CHANGELOG.md || echo "No breaking changes" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Contributors
+        echo "### 👥 Contributors" >> CHANGELOG.md
+        git log $COMMIT_RANGE --pretty=format:"%an" | sort -u | sed 's/^/- @/' >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Statistics
+        echo "### 📊 Statistics" >> CHANGELOG.md
+        COMMITS=$(git rev-list --count $COMMIT_RANGE)
+        FILES_CHANGED=$(git diff --shortstat $COMMIT_RANGE | awk '{print $1}')
+        INSERTIONS=$(git diff --shortstat $COMMIT_RANGE | awk '{print $4}')
+        DELETIONS=$(git diff --shortstat $COMMIT_RANGE | awk '{print $6}')
+        
+        echo "- **Commits:** $COMMITS" >> CHANGELOG.md
+        echo "- **Files Changed:** ${FILES_CHANGED:-0}" >> CHANGELOG.md
+        echo "- **Insertions:** ${INSERTIONS:-0}" >> CHANGELOG.md
+        echo "- **Deletions:** ${DELETIONS:-0}" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Docker Images
+        echo "### 🐳 Docker Images" >> CHANGELOG.md
+        echo '```' >> CHANGELOG.md
+        echo "ghcr.io/${{ github.repository }}/api-gateway:$CURRENT_TAG" >> CHANGELOG.md
+        echo "ghcr.io/${{ github.repository }}/user-service:$CURRENT_TAG" >> CHANGELOG.md
+        echo "ghcr.io/${{ github.repository }}/product-service:$CURRENT_TAG" >> CHANGELOG.md
+        echo "ghcr.io/${{ github.repository }}/order-service:$CURRENT_TAG" >> CHANGELOG.md
+        echo "ghcr.io/${{ github.repository }}/payment-service:$CURRENT_TAG" >> CHANGELOG.md
+        echo '```' >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        # Deployment Instructions
+        echo "### 📦 Deployment" >> CHANGELOG.md
+        echo '```bash' >> CHANGELOG.md
+        echo "# Pull images" >> CHANGELOG.md
+        echo "docker pull ghcr.io/${{ github.repository }}/api-gateway:$CURRENT_TAG" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "# Deploy to Kubernetes" >> CHANGELOG.md
+        echo "kubectl set image deployment/api-gateway api-gateway=ghcr.io/${{ github.repository }}/api-gateway:$CURRENT_TAG" >> CHANGELOG.md
+        echo '```' >> CHANGELOG.md
+        
+        cat CHANGELOG.md
+    
+    - name: Create/Update Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+        generate_release_notes: true
+        files: |
+          CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update CHANGELOG.md in repository
+      run: |
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        
+        # Prepend to existing CHANGELOG.md
+        if [ -f CHANGELOG.md ]; then
+          mv CHANGELOG.md CHANGELOG_NEW.md
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## [$CURRENT_TAG] - $(date +%Y-%m-%d)" >> CHANGELOG.md
+          cat CHANGELOG_NEW.md >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat CHANGELOG_OLD.md >> CHANGELOG.md 2>/dev/null || true
+        fi
+        
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CHANGELOG.md
+        git commit -m "docs: update CHANGELOG for $CURRENT_TAG [skip ci]" || echo "No changes to commit"
+        git push origin HEAD:main || echo "Could not push to main"
+    
+    - name: Notify Slack
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: |
+          {
+            "text": "🎉 New Release Published!",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*New Release:* ${{ github.ref_name }}\n*Repository:* ${{ github.repository }}\n*Release Notes:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

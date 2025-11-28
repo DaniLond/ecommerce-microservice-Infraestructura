@@ -1,0 +1,363 @@
+name: CI/CD - Production
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  AKS_CLUSTER_NAME: ecommerce-prod-aks
+  AKS_RESOURCE_GROUP: ecommerce-prod-rg
+  NAMESPACE: production
+
+jobs:
+  approval:
+    name: Production Approval Required
+    runs-on: ubuntu-latest
+    environment:
+      name: production-approval
+    
+    steps:
+    - name: Request approval from stakeholders
+      run: |
+        echo "Production deployment requires approval from:"
+        echo "- Tech Lead"
+        echo "- Product Owner"
+        echo "- DevOps Lead"
+    
+    - name: Wait for approval
+      run: echo "Production deployment approved"
+
+  pre-deployment-checks:
+    name: Pre-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: approval
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Validate Kubernetes manifests
+      run: |
+        kubectl apply --dry-run=client -f k8s/prod/
+    
+    - name: Check database migrations
+      run: |
+        echo "Validating database migration scripts..."
+        # Add your DB migration validation logic
+    
+    - name: Verify backup exists
+      run: |
+        echo "Checking recent backups..."
+        # Add backup verification logic
+
+  promote-images:
+    name: Promote Images to Production
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    
+    strategy:
+      matrix:
+        service: [api-gateway, user-service, product-service, order-service, payment-service]
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Pull staging image
+      run: |
+        docker pull ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest
+    
+    - name: Run final security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest
+        format: 'table'
+        exit-code: '1'
+        severity: 'CRITICAL'
+    
+    - name: Re-tag for production
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        docker tag ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest \
+          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:prod-latest
+        docker tag ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest \
+          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+    
+    - name: Push production images
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        docker push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:prod-latest
+        docker push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+    
+    - name: Sign images with Cosign
+      run: |
+        # Install cosign
+        wget https://github.com/sigstore/cosign/releases/download/v2.0.0/cosign-linux-amd64
+        chmod +x cosign-linux-amd64
+        
+        # Sign the image
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        ./cosign-linux-amd64 sign --key cosign.key \
+          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: promote-images
+    environment:
+      name: production
+      url: https://ecommerce.yourdomain.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+    
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+        cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+    
+    - name: Create backup
+      run: |
+        # Backup current state
+        kubectl get all -n ${{ env.NAMESPACE }} -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
+    
+    - name: Canary Deployment - 10%
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        
+        # Deploy canary version
+        kubectl apply -f k8s/prod/canary/ -n ${{ env.NAMESPACE }}
+        kubectl set image deployment/api-gateway-canary api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
+        
+        # Wait for canary
+        kubectl rollout status deployment/api-gateway-canary -n ${{ env.NAMESPACE }} --timeout=5m
+        
+        # Configure 10% traffic to canary
+        kubectl apply -f - <<EOF
+        apiVersion: networking.istio.io/v1alpha3
+        kind: VirtualService
+        metadata:
+          name: api-gateway
+          namespace: ${{ env.NAMESPACE }}
+        spec:
+          hosts:
+          - api-gateway
+          http:
+          - match:
+            - headers:
+                canary:
+                  exact: "true"
+            route:
+            - destination:
+                host: api-gateway-canary
+                port:
+                  number: 8080
+          - route:
+            - destination:
+                host: api-gateway
+                port:
+                  number: 8080
+              weight: 90
+            - destination:
+                host: api-gateway-canary
+                port:
+                  number: 8080
+              weight: 10
+        EOF
+    
+    - name: Monitor Canary - 5 minutes
+      run: |
+        echo "Monitoring canary deployment for 5 minutes..."
+        sleep 300
+        
+        # Check error rates
+        ERROR_RATE=$(kubectl exec -n monitoring deploy/prometheus -- \
+          promtool query instant 'rate(http_requests_total{status=~"5..",deployment="api-gateway-canary"}[5m])')
+        
+        if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
+          echo "High error rate detected in canary. Rolling back..."
+          exit 1
+        fi
+    
+    - name: Increase Canary to 50%
+      run: |
+        kubectl apply -f - <<EOF
+        apiVersion: networking.istio.io/v1alpha3
+        kind: VirtualService
+        metadata:
+          name: api-gateway
+          namespace: ${{ env.NAMESPACE }}
+        spec:
+          hosts:
+          - api-gateway
+          http:
+          - route:
+            - destination:
+                host: api-gateway
+                port:
+                  number: 8080
+              weight: 50
+            - destination:
+                host: api-gateway-canary
+                port:
+                  number: 8080
+              weight: 50
+        EOF
+        
+        sleep 300  # Monitor for 5 more minutes
+    
+    - name: Complete Canary Deployment - 100%
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        
+        # Update main deployment
+        kubectl set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
+        kubectl set image deployment/user-service user-service=${{ env.REGISTRY }}/${{ github.repository }}/user-service:$VERSION -n ${{ env.NAMESPACE }}
+        kubectl set image deployment/product-service product-service=${{ env.REGISTRY }}/${{ github.repository }}/product-service:$VERSION -n ${{ env.NAMESPACE }}
+        kubectl set image deployment/order-service order-service=${{ env.REGISTRY }}/${{ github.repository }}/order-service:$VERSION -n ${{ env.NAMESPACE }}
+        kubectl set image deployment/payment-service payment-service=${{ env.REGISTRY }}/${{ github.repository }}/payment-service:$VERSION -n ${{ env.NAMESPACE }}
+        
+        # Wait for rollout
+        kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=10m
+        
+        # Route 100% traffic to main
+        kubectl apply -f - <<EOF
+        apiVersion: networking.istio.io/v1alpha3
+        kind: VirtualService
+        metadata:
+          name: api-gateway
+          namespace: ${{ env.NAMESPACE }}
+        spec:
+          hosts:
+          - api-gateway
+          http:
+          - route:
+            - destination:
+                host: api-gateway
+                port:
+                  number: 8080
+              weight: 100
+        EOF
+        
+        # Scale down canary
+        kubectl scale deployment api-gateway-canary --replicas=0 -n ${{ env.NAMESPACE }}
+    
+    - name: Post-Deployment Validation
+      run: |
+        # Health checks
+        export API_URL=$(kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        curl -f https://$API_URL/health || exit 1
+        
+        # Smoke tests
+        curl -f https://$API_URL/api/v1/products || exit 1
+        curl -f https://$API_URL/api/v1/users/health || exit 1
+    
+    - name: Run smoke tests
+      run: |
+        cd tests/smoke
+        npm install
+        npm test
+
+  rollback:
+    name: Rollback if Failed
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: failure()
+    
+    steps:
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+    
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+        cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+    
+    - name: Rollback deployment
+      run: |
+        kubectl rollout undo deployment/api-gateway -n ${{ env.NAMESPACE }}
+        kubectl rollout undo deployment/user-service -n ${{ env.NAMESPACE }}
+        kubectl rollout undo deployment/product-service -n ${{ env.NAMESPACE }}
+        kubectl rollout undo deployment/order-service -n ${{ env.NAMESPACE }}
+        kubectl rollout undo deployment/payment-service -n ${{ env.NAMESPACE }}
+    
+    - name: Verify rollback
+      run: |
+        kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }}
+
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-prod]
+    if: always()
+    
+    steps:
+    - name: Create deployment record
+      run: |
+        echo "Recording deployment in change management system..."
+        # Add your change management API call here
+    
+    - name: Notify Slack
+      uses: slackapi/slack-github-action@v1
+      with:
+        payload: |
+          {
+            "text": "${{ needs.deploy-prod.result == 'success' && '🚀 Production Deployment Successful!' || '🚨 Production Deployment Failed!' }}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Environment:* Production\n*Status:* ${{ needs.deploy-prod.result }}\n*Version:* ${{ github.event.inputs.version || github.ref_name }}\n*Deployed by:* ${{ github.actor }}\n*Time:* $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+                }
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Send email to stakeholders
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "[PROD] Deployment ${{ needs.deploy-prod.result }} - v${{ github.event.inputs.version || github.ref_name }}"
+        to: ${{ secrets.STAKEHOLDER_EMAILS }}
+        from: DevOps CI/CD
+        body: |
+          Production deployment has ${{ needs.deploy-prod.result }}.
+          
+          Version: ${{ github.event.inputs.version || github.ref_name }}
+          Deployed by: ${{ github.actor }}
+          Time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          Release Notes: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}

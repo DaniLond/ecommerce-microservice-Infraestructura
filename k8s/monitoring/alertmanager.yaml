@@ -1,0 +1,331 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      slack_api_url: '${SLACK_WEBHOOK_URL}'
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@ecommerce.com'
+      smtp_auth_username: '${SMTP_USERNAME}'
+      smtp_auth_password: '${SMTP_PASSWORD}'
+      smtp_require_tls: true
+
+    # Template files
+    templates:
+      - '/etc/alertmanager/templates/*.tmpl'
+
+    # The root route
+    route:
+      receiver: 'default-receiver'
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      routes:
+        # Critical alerts
+        - receiver: 'critical-alerts'
+          match:
+            severity: critical
+          continue: true
+
+        # Warning alerts
+        - receiver: 'warning-alerts'
+          match:
+            severity: warning
+          continue: false
+
+        # Team-specific routing
+        - receiver: 'backend-team'
+          match:
+            team: backend
+          continue: false
+
+        - receiver: 'sre-team'
+          match:
+            team: sre
+          continue: false
+
+        - receiver: 'product-team'
+          match:
+            team: product
+          continue: false
+
+        # Payment team (critical)
+        - receiver: 'payment-team-pagerduty'
+          match:
+            team: payments
+            severity: critical
+          continue: true
+
+    # Inhibition rules
+    inhibit_rules:
+      # Inhibit warning if critical is firing
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'cluster', 'service']
+
+      # Inhibit all if service is down
+      - source_match:
+          alertname: 'ServiceDown'
+        target_match_re:
+          alertname: '.*'
+        equal: ['service']
+
+    # Receivers
+    receivers:
+      - name: 'default-receiver'
+        slack_configs:
+          - channel: '#alerts'
+            title: '{{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            send_resolved: true
+
+      - name: 'critical-alerts'
+        slack_configs:
+          - channel: '#critical-alerts'
+            title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+            text: |
+              *Alert:* {{ .GroupLabels.alertname }}
+              *Severity:* {{ .CommonLabels.severity }}
+              *Environment:* {{ .CommonLabels.environment }}
+              *Service:* {{ .CommonLabels.service }}
+              
+              *Description:*
+              {{ range .Alerts }}
+              {{ .Annotations.description }}
+              {{ end }}
+              
+              *Runbook:* {{ .CommonAnnotations.runbook_url }}
+            send_resolved: true
+            color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        
+        email_configs:
+          - to: 'oncall@ecommerce.com,tech-lead@ecommerce.com'
+            headers:
+              Subject: '[CRITICAL] {{ .GroupLabels.alertname }} - {{ .CommonLabels.service }}'
+            html: |
+              <h2>Critical Alert Fired</h2>
+              <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+              <p><strong>Service:</strong> {{ .CommonLabels.service }}</p>
+              <p><strong>Description:</strong></p>
+              {{ range .Alerts }}
+              <p>{{ .Annotations.description }}</p>
+              {{ end }}
+        
+        pagerduty_configs:
+          - service_key: '${PAGERDUTY_SERVICE_KEY}'
+            description: '{{ .GroupLabels.alertname }}'
+            details:
+              firing: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            client: 'Prometheus'
+            client_url: 'https://prometheus.yourdomain.com'
+
+      - name: 'warning-alerts'
+        slack_configs:
+          - channel: '#warnings'
+            title: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            send_resolved: true
+            color: 'warning'
+
+      - name: 'backend-team'
+        slack_configs:
+          - channel: '#backend-alerts'
+            title: '{{ .GroupLabels.alertname }}'
+            text: |
+              *Service:* {{ .CommonLabels.service }}
+              {{ range .Alerts }}
+              {{ .Annotations.description }}
+              {{ end }}
+            send_resolved: true
+        email_configs:
+          - to: 'backend-team@ecommerce.com'
+
+      - name: 'sre-team'
+        slack_configs:
+          - channel: '#sre-alerts'
+            title: '{{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            send_resolved: true
+        email_configs:
+          - to: 'sre-team@ecommerce.com'
+
+      - name: 'product-team'
+        slack_configs:
+          - channel: '#product-alerts'
+            title: '📊 {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            send_resolved: true
+
+      - name: 'payment-team-pagerduty'
+        pagerduty_configs:
+          - service_key: '${PAGERDUTY_PAYMENT_KEY}'
+            description: 'Payment System Alert: {{ .GroupLabels.alertname }}'
+        slack_configs:
+          - channel: '#payments-critical'
+            title: '💳 PAYMENT ALERT: {{ .GroupLabels.alertname }}'
+            text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+            send_resolved: true
+
+  notification-templates.tmpl: |
+    {{ define "slack.default.title" }}
+    {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} {{ .GroupLabels.alertname }}
+    {{ end }}
+
+    {{ define "slack.default.text" }}
+    *Cluster:* {{ .CommonLabels.cluster }}
+    *Environment:* {{ .CommonLabels.environment }}
+    *Service:* {{ .CommonLabels.service }}
+    *Severity:* {{ .CommonLabels.severity }}
+    *Status:* {{ .Status | toUpper }}
+
+    {{ range .Alerts }}
+    *Description:* {{ .Annotations.description }}
+    *Summary:* {{ .Annotations.summary }}
+    {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+    {{ end }}
+
+    {{ if gt (len .Alerts.Firing) 0 }}
+    *Firing:*
+    {{ range .Alerts.Firing }}
+    • {{ .Labels.alertname }} - {{ .Annotations.summary }}
+    {{ end }}
+    {{ end }}
+
+    {{ if gt (len .Alerts.Resolved) 0 }}
+    *Resolved:*
+    {{ range .Alerts.Resolved }}
+    • {{ .Labels.alertname }} - {{ .Annotations.summary }}
+    {{ end }}
+    {{ end }}
+    {{ end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-secrets
+  namespace: monitoring
+type: Opaque
+stringData:
+  slack-webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  smtp-username: "your-email@gmail.com"
+  smtp-password: "your-app-password"
+  pagerduty-service-key: "your-pagerduty-key"
+  pagerduty-payment-key: "your-payment-team-key"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.26.0
+          args:
+            - '--config.file=/etc/alertmanager/alertmanager.yml'
+            - '--storage.path=/alertmanager'
+            - '--cluster.listen-address=0.0.0.0:9094'
+            - '--cluster.advertise-address=$(POD_IP):9094'
+            - '--cluster.peer=alertmanager-0.alertmanager:9094'
+            - '--cluster.peer=alertmanager-1.alertmanager:9094'
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-secrets
+                  key: slack-webhook-url
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-secrets
+                  key: smtp-username
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-secrets
+                  key: smtp-password
+            - name: PAGERDUTY_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-secrets
+                  key: pagerduty-service-key
+            - name: PAGERDUTY_PAYMENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-secrets
+                  key: pagerduty-payment-key
+          ports:
+            - containerPort: 9093
+              name: web
+            - containerPort: 9094
+              name: cluster
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: storage
+              mountPath: /alertmanager
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 9093
+      targetPort: 9093
+      name: web
+    - port: 9094
+      targetPort: 9094
+      name: cluster
+  selector:
+    app: alertmanager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-external
+  namespace: monitoring
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 9093
+      name: web
+  selector:
+    app: alertmanager
