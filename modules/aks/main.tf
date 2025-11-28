@@ -161,7 +161,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "additional" {
   os_type                = each.value.os_type
   node_labels            = each.value.node_labels
   zones                  = []
-
+// Autoscaling configuration
   upgrade_settings {
     max_surge = "10%"
   }
