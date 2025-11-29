@@ -12,10 +12,14 @@ on:
         required: true
         type: string
 
-env:
   REGISTRY: ghcr.io
   AKS_CLUSTER_NAME: ecommerce-prod-aks
   AKS_RESOURCE_GROUP: ecommerce-prod-rg
+  NAMESPACE: production
+env:
+  REGISTRY: ghcr.io
+  AKS_CLUSTER_NAME: ecommerce-prod-aks
+  AKS_RESOURCE_GROUP: ecommerce-prod-rg2
   NAMESPACE: production
 
 jobs:
