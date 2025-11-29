@@ -88,7 +88,8 @@ jobs:
     
     - name: Pull staging image
       run: |
-        docker pull ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest
+        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+        docker pull ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest
     
     - name: Run final security scan
       uses: aquasecurity/trivy-action@master
@@ -100,28 +101,30 @@ jobs:
     
     - name: Re-tag for production
       run: |
+        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         VERSION=${{ github.event.inputs.version || github.ref_name }}
-        docker tag ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest \
-          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:prod-latest
-        docker tag ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest \
-          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest \
+          ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest
+        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest \
+          ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:$VERSION
     
     - name: Push production images
       run: |
+        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         VERSION=${{ github.event.inputs.version || github.ref_name }}
-        docker push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:prod-latest
-        docker push ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+        docker push ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest
+        docker push ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:$VERSION
     
     - name: Sign images with Cosign
       run: |
         # Install cosign
         wget https://github.com/sigstore/cosign/releases/download/v2.0.0/cosign-linux-amd64
         chmod +x cosign-linux-amd64
-        
+        REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         # Sign the image
         VERSION=${{ github.event.inputs.version || github.ref_name }}
         ./cosign-linux-amd64 sign --key cosign.key \
-          ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:$VERSION
+          ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:$VERSION
 
   deploy-prod:
     name: Deploy to Production
