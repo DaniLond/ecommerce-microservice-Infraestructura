@@ -45,6 +45,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set kubeconfig for GitHub Actions
+      run: echo "${{ secrets.KUBECONFIG_PROD }}" > $HOME/.kube/config
+
     - name: Azure Login
       uses: azure/login@v1
       with:
