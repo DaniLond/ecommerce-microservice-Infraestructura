@@ -36,7 +36,7 @@ terraform {
 
 provider "azurerm" {
   skip_provider_registration = true
-  subscription_id            = "027c217f-9523-4190-aa01-bbf4fed9f5f7"
+  subscription_id            = "13867de7-44ee-4b9a-9034-7401ac01eea2"
   
   features {
     # Configuración de comportamiento para Resource Groups

@@ -1,16 +1,17 @@
+
 # =============================================================================
-# ENVIRONMENT: DEV - MAIN CONFIGURATION
+# ENVIRONMENT: PROD - MAIN CONFIGURATION
 # =============================================================================
-# Este archivo orquesta todos los módulos para crear el ambiente de desarrollo
+# Este archivo orquesta todos los módulos para crear el ambiente de producción
 
 terraform {
   required_version = ">= 1.5.0"
 
   backend "azurerm" {
     resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstateicesi20251129"
+    storage_account_name = "tfstateicesi20251128"
     container_name       = "tfstate"
-    key                  = "dev.terraform.tfstate"
+    key                  = "prod.terraform.tfstate"
   }
 }
 
@@ -18,7 +19,7 @@ terraform {
 # LOCALS
 # -----------------------------------------------------------------------------
 locals {
-  environment = "dev"
+  environment = "prod"
   common_tags = {
     Environment = local.environment
     Project     = var.project_name

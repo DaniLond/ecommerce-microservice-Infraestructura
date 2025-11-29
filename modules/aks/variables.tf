@@ -48,7 +48,7 @@ variable "vnet_id" {
 variable "kubernetes_version" {
   description = "Versión de Kubernetes a usar"
   type        = string
-  default     = "1.28.3"
+  default     = "1.33.5"
 }
 
 # -----------------------------------------------------------------------------
@@ -69,7 +69,7 @@ variable "default_node_pool_name" {
 variable "node_count" {
   description = "Número de nodos en el node pool por defecto"
   type        = number
-  default     = 3
+  default     = 1
 
   validation {
     condition     = var.node_count >= 1 && var.node_count <= 100

@@ -32,7 +32,7 @@ variable "aks_subnet_name" {
 variable "aks_subnet_address_prefix" {
   description = "Rango de direcciones CIDR para la subnet de AKS"
   type        = list(string)
-  default     = ["10.0.1.0/24"]
+  default     = ["10.0.0.0/22"]
 }
 
 variable "create_public_ip" {

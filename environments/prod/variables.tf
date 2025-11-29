@@ -1,10 +1,5 @@
-# =============================================================================
-# ENVIRONMENT: DEV - VARIABLES
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# GENERAL
-# -----------------------------------------------------------------------------
+# Copia de variables para producción
+# Modifica los valores por los de tu entorno prod si es necesario
 
 variable "project_name" {
   description = "Nombre del proyecto"
@@ -21,29 +16,25 @@ variable "location" {
 variable "resource_group_name" {
   description = "Nombre del Resource Group"
   type        = string
-  default     = "ecommerce-dev-rg"
+  default     = "ecommerce-prod-rg2"
 }
 
 variable "suffix" {
   description = "Sufijo para recursos que requieren nombres únicos globalmente"
   type        = string
-  default     = "001"
+  default     = "prod001"
 }
-
-# -----------------------------------------------------------------------------
-# NETWORKING
-# -----------------------------------------------------------------------------
 
 variable "vnet_address_space" {
   description = "Rango de direcciones CIDR para la VNet"
   type        = list(string)
-  default     = ["10.0.0.0/16"]
+  default     = ["10.10.0.0/23"]
 }
 
 variable "aks_subnet_address_prefix" {
   description = "Rango de direcciones CIDR para la subnet de AKS"
   type        = list(string)
-  default     = ["10.0.1.0/24"]
+  default     = ["10.10.1.0/24"]
 }
 
 variable "create_public_ip" {
@@ -51,10 +42,6 @@ variable "create_public_ip" {
   type        = bool
   default     = true
 }
-
-# -----------------------------------------------------------------------------
-# AKS CONFIGURATION
-# -----------------------------------------------------------------------------
 
 variable "kubernetes_version" {
   description = "Versión de Kubernetes"
@@ -65,13 +52,13 @@ variable "kubernetes_version" {
 variable "node_count" {
   description = "Número de nodos en el node pool por defecto"
   type        = number
-  default     = 3
+  default     = 1
 }
 
 variable "vm_size" {
   description = "Tamaño de las VMs para los nodos"
   type        = string
-  default     = "Standard_D2s_v3"
+  default     = "Standard_B2s"
 }
 
 variable "os_disk_size_gb" {
@@ -95,13 +82,13 @@ variable "enable_auto_scaling" {
 variable "min_count" {
   description = "Número mínimo de nodos (cuando auto-scaling está habilitado)"
   type        = number
-  default     = 3
+  default     = 1
 }
 
 variable "max_count" {
   description = "Número máximo de nodos (cuando auto-scaling está habilitado)"
   type        = number
-  default     = 10
+  default     = 1
 }
 
 variable "network_plugin" {
@@ -119,18 +106,14 @@ variable "network_policy" {
 variable "service_cidr" {
   description = "CIDR para servicios de Kubernetes"
   type        = string
-  default     = "10.1.0.0/16"
+  default     = "10.11.0.0/16"
 }
 
 variable "dns_service_ip" {
   description = "IP para el servicio DNS de Kubernetes"
   type        = string
-  default     = "10.1.0.10"
+  default     = "10.11.0.10"
 }
-
-# -----------------------------------------------------------------------------
-# AKS ADD-ONS
-# -----------------------------------------------------------------------------
 
 variable "enable_azure_ad_rbac" {
   description = "Habilitar integración con Azure AD para RBAC"
@@ -168,19 +151,11 @@ variable "enable_key_vault_secrets_provider" {
   default     = true
 }
 
-# -----------------------------------------------------------------------------
-# AZURE CONTAINER REGISTRY
-# -----------------------------------------------------------------------------
-
 variable "acr_id" {
   description = "ID del Azure Container Registry para integración con AKS"
   type        = string
   default     = null
 }
-
-# -----------------------------------------------------------------------------
-# ADDITIONAL NODE POOLS
-# -----------------------------------------------------------------------------
 
 variable "additional_node_pools" {
   description = "Configuración de node pools adicionales"
@@ -200,10 +175,6 @@ variable "additional_node_pools" {
   }))
   default = {}
 }
-
-# -----------------------------------------------------------------------------
-# KEY VAULT
-# -----------------------------------------------------------------------------
 
 variable "key_vault_sku" {
   description = "SKU del Key Vault"

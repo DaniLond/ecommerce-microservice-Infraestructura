@@ -30,7 +30,7 @@ resource "azurerm_kubernetes_cluster" "this" {
       node_count          = var.node_count
 
     upgrade_settings {
-      max_surge = "10%"
+      max_surge = "1%"
     }
 
     tags = var.tags
@@ -163,7 +163,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "additional" {
   zones                  = []
 // Autoscaling configuration
   upgrade_settings {
-    max_surge = "10%"
+    max_surge = "1%"
   }
 
   tags = merge(
