@@ -89,12 +89,12 @@ jobs:
     - name: Pull staging image
       run: |
         REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-        docker pull ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest
+        docker pull ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest
     
     - name: Run final security scan
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:stage-latest
+        image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}:prod-latest
         format: 'table'
         exit-code: '1'
         severity: 'CRITICAL'
@@ -103,9 +103,9 @@ jobs:
       run: |
         REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         VERSION=${{ github.event.inputs.version || github.ref_name }}
-        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest \
+        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest \
           ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest
-        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:stage-latest \
+        docker tag ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:prod-latest \
           ${{ env.REGISTRY }}/$REPO/${{ matrix.service }}:$VERSION
     
     - name: Push production images
