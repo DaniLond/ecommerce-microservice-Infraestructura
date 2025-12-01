@@ -41,9 +41,6 @@ variable "vnet_id" {
   type        = string
 }
 
-# -----------------------------------------------------------------------------
-# KUBERNETES VERSION
-# -----------------------------------------------------------------------------
 
 variable "kubernetes_version" {
   description = "Versión de Kubernetes a usar"
