@@ -96,10 +96,27 @@ jobs:
 
       - name: Post-Deployment Validation
         run: |
-          export API_URL=$(kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          curl -f https://$API_URL/health || exit 1
-          curl -f https://$API_URL/api/v1/products || exit 1
-          curl -f https://$API_URL/api/v1/users/health || exit 1
+          # Esperar a que el deployment esté listo
+          kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=180s
+
+          # Esperar a que el servicio tenga IP pública
+          for i in {1..30}; do
+            API_URL=$(kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [ -n "$API_URL" ]; then break; fi
+            echo 'Waiting for LoadBalancer IP...'
+            sleep 10
+          done
+
+          if [ -z "$API_URL" ]; then
+            echo "LoadBalancer IP not assigned!"
+            kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o yaml
+            exit 1
+          fi
+
+          # Cambia a http si no tienes TLS configurado
+          curl -f http://$API_URL/health || exit 1
+          curl -f http://$API_URL/api/v1/products || exit 1
+          curl -f http://$API_URL/api/v1/users/health || exit 1
 
       - name: Run smoke tests
         run: |
