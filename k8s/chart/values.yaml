@@ -1,12 +1,13 @@
+
 namespace: development
 # Valores por defecto para userService (dev)
 userService:
-	replicaCount: 1
-	image: ecommerceacr1202.azurecr.io/user-service:0.1.0
-	springProfile: dev
-	zipkinUrl: http://zipkin:9411
-	eurekaMyZone: http://service-discovery:8761/eureka
-	eurekaDefaultZone: http://service-discovery:8761/eureka/
-	configImport: optional:configserver:http://cloud-config:9296/
-	javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/user-service:0.1.0
+  springProfile: dev
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  configImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
 # Puedes agregar aquí valores por defecto para los servicios
