@@ -1,3 +1,4 @@
+
 productService:
   replicaCount: 1
   image: ecommerceacr1202.azurecr.io/product-service:0.1.0
@@ -5,6 +6,9 @@ productService:
   zipkinUrl: http://zipkin:9411
   configImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  hpa:
+    minReplicas: 1
+    maxReplicas: 5
 
 orderService:
   replicaCount: 1
@@ -74,6 +78,10 @@ serviceDiscovery:
   zipkinUrl: http://zipkin:9411
   configImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms512m -Xmx1Gi -XX:+UseG1GC
+# HPA
+  hpa:
+    minReplicas: 2
+    maxReplicas: 5
 
 userService:
   replicaCount: 1

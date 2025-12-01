@@ -8,6 +8,10 @@ serviceDiscovery:
   zipkinUrl: http://zipkin:9411
   configImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms512m -Xmx1Gi -XX:+UseG1GC
+# HPA
+  hpa:
+    minReplicas: 2
+    maxReplicas: 5
 # Valores por defecto para userService (dev)
 userService:
   replicaCount: 1
@@ -22,3 +26,9 @@ userService:
     minReplicas: 1
     maxReplicas: 8
 # Puedes agregar aquí valores por defecto para los servicios
+
+# HPA para productService (dev)
+productService:
+  hpa:
+    minReplicas: 1
+    maxReplicas: 5
