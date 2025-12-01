@@ -1,0 +1,74 @@
+namespace: production
+
+zipkin:
+  replicaCount: 1
+  image: openzipkin/zipkin:latest
+
+cloudConfig:
+  replicaCount: 2
+  image: ecommerceacr1202.azurecr.io/cloud-config:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+orderService:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/order-service:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+paymentService:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/payment-service:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+shippingService:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/shipping-service:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+favouriteService:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/favourite-service:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+proxyClient:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/proxy-client:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
+apiGateway:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/api-gateway:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  springConfigImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms512m -Xmx1Gi -XX:+UseG1GC

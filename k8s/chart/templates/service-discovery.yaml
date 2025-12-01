@@ -1,0 +1,113 @@
+# Service Discovery (Helm template)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: service-discovery
+    component: infrastructure
+spec:
+  replicas: {{ .Values.serviceDiscovery.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+        component: infrastructure
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8761"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      containers:
+      - name: service-discovery
+        image: {{ .Values.serviceDiscovery.image }}
+        ports:
+        - containerPort: 8761
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: {{ .Values.serviceDiscovery.springProfile | quote }}
+        - name: SPRING_ZIPKIN_BASE_URL
+          value: {{ .Values.serviceDiscovery.zipkinUrl | quote }}
+        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+          value: "true"
+        - name: SPRING_CONFIG_IMPORT
+          value: {{ .Values.serviceDiscovery.configImport | quote }}
+        - name: JAVA_OPTS
+          value: {{ .Values.serviceDiscovery.javaOpts | quote }}
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8761
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8761
+          initialDelaySeconds: 60
+          periodSeconds: 5
+          timeoutSeconds: 3
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8761
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: service-discovery
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8761
+    targetPort: 8761
+    protocol: TCP
+    name: http
+  selector:
+    app: service-discovery
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: service-discovery-hpa
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: service-discovery
+  minReplicas: {{ .Values.serviceDiscovery.hpa.minReplicas | default 2 }}
+  maxReplicas: {{ .Values.serviceDiscovery.hpa.maxReplicas | default 5 }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

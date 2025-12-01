@@ -83,12 +83,16 @@ jobs:
         run: |
           kubectl get deployments,services,configmaps,secrets,pods,ingresses -n ${{ env.NAMESPACE }} -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
 
-      - name: Desplegar todos los servicios base
+      - name: Instalar Helm
         run: |
-          kubectl apply -f k8s/services/ -n ${{ env.NAMESPACE }}
-      - name: Desplegar manifiestos específicos de producción
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Desplegar con Helm
         run: |
-          kubectl apply -f k8s/prod/ -n ${{ env.NAMESPACE }}
+          helm upgrade --install ecommerce-microservice ./k8s/chart \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            -f ./k8s/chart/values-prod.yaml
 
       - name: Post-Deployment Validation
         run: |
