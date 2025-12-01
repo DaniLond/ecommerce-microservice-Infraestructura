@@ -87,6 +87,12 @@ jobs:
       with:
         resource-group: ${{ env.AKS_RESOURCE_GROUP }}
         cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+
+    - name: Install kubelogin
+      run: |
+        wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
+        unzip kubelogin-linux-amd64.zip
+        sudo mv kubelogin /usr/local/bin/
     
     - name: Create backup
       run: |
