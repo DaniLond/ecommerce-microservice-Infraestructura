@@ -23,6 +23,10 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/actuator/prometheus"
     spec:
+      imagePullSecrets:
+      {{- if .Values.apiGateway.imagePullSecrets }}
+        {{- toYaml .Values.apiGateway.imagePullSecrets | nindent 6 }}
+      {{- end }}
       containers:
       - name: api-gateway
         image: {{ .Values.apiGateway.image | default "ecommerceacr1202.azurecr.io/api-gateway:0.1.0" }}

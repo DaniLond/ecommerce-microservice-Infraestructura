@@ -1,7 +1,7 @@
 
 productService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/product-service:0.1.0
+  image: ghcr.io/danilond/product-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   configImport: optional:configserver:http://cloud-config:9296/
@@ -9,71 +9,85 @@ productService:
   hpa:
     minReplicas: 1
     maxReplicas: 5
+  imagePullSecrets:
+    - name: ghcr-secret
 
 orderService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/order-service:0.1.0
+  image: ghcr.io/danilond/order-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 paymentService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/payment-service:0.1.0
+  image: ghcr.io/danilond/payment-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 shippingService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/shipping-service:0.1.0
+  image: ghcr.io/danilond/shipping-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 favouriteService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/favourite-service:0.1.0
+  image: ghcr.io/danilond/favourite-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 proxyClient:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/proxy-client:0.1.0
+  image: ghcr.io/danilond/proxy-client-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 apiGateway:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/api-gateway:0.1.0
+  image: ghcr.io/danilond/api-gateway-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   springConfigImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms512m -Xmx1Gi -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 namespace: production
 
 serviceDiscovery:
   replicaCount: 2
-  image: ecommerceacr1202.azurecr.io/service-discovery:0.1.0
+  image: ghcr.io/danilond/service-discovery-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   configImport: optional:configserver:http://cloud-config:9296/
@@ -82,10 +96,12 @@ serviceDiscovery:
   hpa:
     minReplicas: 2
     maxReplicas: 5
+  imagePullSecrets:
+    - name: ghcr-secret
 
 userService:
   replicaCount: 1
-  image: ecommerceacr1202.azurecr.io/user-service:0.1.0
+  image: ghcr.io/danilond/user-service-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
@@ -95,6 +111,8 @@ userService:
   hpa:
     minReplicas: 1
     maxReplicas: 8
+  imagePullSecrets:
+    - name: ghcr-secret
 
 zipkin:
   replicaCount: 1
@@ -102,12 +120,14 @@ zipkin:
 
 cloudConfig:
   replicaCount: 2
-  image: ecommerceacr1202.azurecr.io/cloud-config:0.1.0
+  image: ghcr.io/danilond/cloud-config-ecommerce-boot:latest
   springProfile: prod
   zipkinUrl: http://zipkin:9411
   eurekaMyZone: http://service-discovery:8761/eureka
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  imagePullSecrets:
+    - name: ghcr-secret
 
 orderService:
   replicaCount: 1
