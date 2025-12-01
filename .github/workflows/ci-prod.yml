@@ -8,12 +8,6 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        - name: Install kubelogin
-          run: |
-            wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
-            unzip kubelogin-linux-amd64.zip
-            sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
-            sudo chmod +x /usr/local/bin/kubelogin
         description: 'Version to deploy'
         required: true
         type: string
