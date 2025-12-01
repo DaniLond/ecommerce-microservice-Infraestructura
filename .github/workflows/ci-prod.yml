@@ -123,14 +123,22 @@ jobs:
           - api-gateway
           http:
           - match:
-            - headers:
-                canary:
-                  exact: "true"
-            route:
             - destination:
-                host: api-gateway-canary
-                port:
-                  number: 8080
+          - name: Set kubeconfig for GitHub Actions
+            run: |
+              mkdir -p $HOME/.kube
+              echo "${{ secrets.KUBECONFIG_PROD }}" > $HOME/.kube/config
+
+          - name: Install kubelogin
+            run: |
+              wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
+              unzip kubelogin-linux-amd64.zip
+              sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+              sudo chmod +x /usr/local/bin/kubelogin
+
+          - name: Validate Kubernetes manifests
+            run: |
+              kubectl apply --dry-run=client -f k8s/prod/
           - route:
             - destination:
                 host: api-gateway
