@@ -191,7 +191,8 @@ jobs:
       run: |
         wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
         unzip kubelogin-linux-amd64.zip
-        sudo mv kubelogin /usr/local/bin/
+          sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+          sudo chmod +x /usr/local/bin/kubelogin
     
     - name: Create namespace if not exists
       run: |
