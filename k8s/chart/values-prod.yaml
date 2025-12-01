@@ -1,5 +1,15 @@
 namespace: production
 
+userService:
+  replicaCount: 1
+  image: ecommerceacr1202.azurecr.io/user-service:0.1.0
+  springProfile: prod
+  zipkinUrl: http://zipkin:9411
+  eurekaMyZone: http://service-discovery:8761/eureka
+  eurekaDefaultZone: http://service-discovery:8761/eureka/
+  configImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+
 zipkin:
   replicaCount: 1
   image: openzipkin/zipkin:latest
