@@ -26,15 +26,14 @@ jobs:
       name: production-approval
     
     steps:
-    - name: Request approval from stakeholders
-      run: |
-        echo "Production deployment requires approval from:"
-        echo "- Tech Lead"
-        echo "- Product Owner"
-        echo "- DevOps Lead"
-    
-    - name: Wait for approval
-      run: echo "Production deployment approved"
+      - name: Request approval from stakeholders
+        run: |
+          echo "Production deployment requires approval from:"
+          echo "- Tech Lead"
+          echo "- Product Owner"
+          echo "- DevOps Lead"
+      - name: Wait for approval
+        run: echo "Production deployment approved"
 
   pre-deployment-checks:
     name: Pre-Deployment Validation
@@ -42,18 +41,16 @@ jobs:
     needs: approval
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Check database migrations
-      run: |
-        echo "Validating database migration scripts..."
-        # Add your DB migration validation logic
-    
-    - name: Verify backup exists
-      run: |
-        echo "Checking recent backups..."
-        # Add backup verification logic
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Check database migrations
+        run: |
+          echo "Validating database migration scripts..."
+          # Add your DB migration validation logic
+      - name: Verify backup exists
+        run: |
+          echo "Checking recent backups..."
+          # Add backup verification logic
 
   deploy-prod:
     name: Deploy to Production
@@ -65,167 +62,66 @@ jobs:
     
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-        subscription-id: 13867de7-44ee-4b9a-9034-7401ac01eea2
-
-    - name: Set AKS context
-      uses: azure/aks-set-context@v3
-      with:
-        resource-group: ${{ env.AKS_RESOURCE_GROUP }}
-        cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-
-    - name: Create backup
-      run: |
-        # Backup current state
-        kubectl get deployments,services,configmaps,secrets,pods,ingresses -n ${{ env.NAMESPACE }} -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
-    
-    - name: Canary Deployment - 10%
-      run: |
-        VERSION=${{ github.event.inputs.version || github.ref_name }}
-        
-        # Deploy canary version
-        kubectl apply -f k8s/prod/canary/ -n ${{ env.NAMESPACE }}
-        kubectl set image deployment/api-gateway-canary api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
-        
-        # Wait for canary
-        kubectl rollout status deployment/api-gateway-canary -n ${{ env.NAMESPACE }} --timeout=5m
-        
-        # Configure 10% traffic to canary
-        kubectl apply -f - <<EOF
-        apiVersion: networking.istio.io/v1alpha3
-        kind: VirtualService
-        steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-
-        - name: Azure Login
-          uses: azure/login@v1
-          with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-
-        - name: Set AKS context
-          uses: azure/aks-set-context@v3
-          with:
-            resource-group: ${{ env.AKS_RESOURCE_GROUP }}
-            cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-              unzip kubelogin-linux-amd64.zip
-              sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
-              sudo chmod +x /usr/local/bin/kubelogin
-
-          - name: Validate Kubernetes manifests
-            run: |
-              kubectl apply --dry-run=client -f k8s/prod/
-
-          steps:
-          - name: Checkout code
-            uses: actions/checkout@v4
-
-          - name: Azure Login
-            uses: azure/login@v1
-            with:
-              client-id: ${{ secrets.AZURE_CLIENT_ID }}
-              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-              client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-
-          - name: Set AKS context
-            uses: azure/aks-set-context@v3
-            with:
-              resource-group: ${{ env.AKS_RESOURCE_GROUP }}
-              cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-        
-        if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
-          echo "High error rate detected in canary. Rolling back..."
-          exit 1
-        fi
-    
-    - name: Increase Canary to 50%
-      run: |
-        kubectl apply -f - <<EOF
-        apiVersion: networking.istio.io/v1alpha3
-        kind: VirtualService
-        metadata:
-          name: api-gateway
-          namespace: ${{ env.NAMESPACE }}
-        spec:
-          hosts:
-          - api-gateway
-          http:
-          - route:
-            - destination:
-                host: api-gateway
-                port:
-                  number: 8080
-              weight: 50
-            - destination:
-                host: api-gateway-canary
-                port:
-                  number: 8080
-              weight: 50
-        EOF
-        
-        sleep 300  # Monitor for 5 more minutes
-    
-    - name: Complete Canary Deployment - 100%
-      run: |
-        VERSION=${{ github.event.inputs.version || github.ref_name }}
-        
-        # Update main deployment
-        kubectl set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
-        kubectl set image deployment/user-service user-service=${{ env.REGISTRY }}/${{ github.repository }}/user-service:$VERSION -n ${{ env.NAMESPACE }}
-        kubectl set image deployment/product-service product-service=${{ env.REGISTRY }}/${{ github.repository }}/product-service:$VERSION -n ${{ env.NAMESPACE }}
-        kubectl set image deployment/order-service order-service=${{ env.REGISTRY }}/${{ github.repository }}/order-service:$VERSION -n ${{ env.NAMESPACE }}
-        kubectl set image deployment/payment-service payment-service=${{ env.REGISTRY }}/${{ github.repository }}/payment-service:$VERSION -n ${{ env.NAMESPACE }}
-        
-        # Wait for rollout
-        kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=10m
-        
-        # Route 100% traffic to main
-        kubectl apply -f - <<EOF
-        apiVersion: networking.istio.io/v1alpha3
-        kind: VirtualService
-        metadata:
-          name: api-gateway
-          namespace: ${{ env.NAMESPACE }}
-        spec:
-          hosts:
-          - api-gateway
-          http:
-          - route:
-            - destination:
-                host: api-gateway
-                port:
-                  number: 8080
-              weight: 100
-        EOF
-        
-        # Scale down canary
-        kubectl scale deployment api-gateway-canary --replicas=0 -n ${{ env.NAMESPACE }}
-    
-    - name: Post-Deployment Validation
-      run: |
-        # Health checks
-        export API_URL=$(kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-        curl -f https://$API_URL/health || exit 1
-        
-        # Smoke tests
-        curl -f https://$API_URL/api/v1/products || exit 1
-        curl -f https://$API_URL/api/v1/users/health || exit 1
-    
-    - name: Run smoke tests
-      run: |
-        cd tests/smoke
-        npm install
-        npm test
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          subscription-id: 13867de7-44ee-4b9a-9034-7401ac01eea2
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+      - name: Create backup
+        run: |
+          # Backup current state
+          kubectl get deployments,services,configmaps,secrets,pods,ingresses -n ${{ env.NAMESPACE }} -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
+      - name: Canary Deployment - 10%
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          # Deploy canary version
+          kubectl apply -f k8s/prod/canary/ -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/api-gateway-canary api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
+          # Wait for canary
+          kubectl rollout status deployment/api-gateway-canary -n ${{ env.NAMESPACE }} --timeout=5m
+          # Configure 10% traffic to canary
+          kubectl apply -f k8s/prod/virtualservice-canary-10.yaml -n ${{ env.NAMESPACE }}
+      - name: Increase Canary to 50%
+        run: |
+          kubectl apply -f k8s/prod/virtualservice-canary-50.yaml -n ${{ env.NAMESPACE }}
+          sleep 300  # Monitor for 5 more minutes
+      - name: Complete Canary Deployment - 100%
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          # Update main deployment
+          kubectl set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/user-service user-service=${{ env.REGISTRY }}/${{ github.repository }}/user-service:$VERSION -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/product-service product-service=${{ env.REGISTRY }}/${{ github.repository }}/product-service:$VERSION -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/order-service order-service=${{ env.REGISTRY }}/${{ github.repository }}/order-service:$VERSION -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/payment-service payment-service=${{ env.REGISTRY }}/${{ github.repository }}/payment-service:$VERSION -n ${{ env.NAMESPACE }}
+          # Wait for rollout
+          kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=10m
+          # Route 100% traffic to main
+          kubectl apply -f k8s/prod/virtualservice-main-100.yaml -n ${{ env.NAMESPACE }}
+          # Scale down canary
+          kubectl scale deployment api-gateway-canary --replicas=0 -n ${{ env.NAMESPACE }}
+      - name: Post-Deployment Validation
+        run: |
+          # Health checks
+          export API_URL=$(kubectl get svc api-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -f https://$API_URL/health || exit 1
+          # Smoke tests
+          curl -f https://$API_URL/api/v1/products || exit 1
+          curl -f https://$API_URL/api/v1/users/health || exit 1
+      - name: Run smoke tests
+        run: |
+          cd tests/smoke
+          npm install
+          npm test
 
   rollback:
     name: Rollback if Failed
@@ -234,28 +130,28 @@ jobs:
     if: failure()
     
     steps:
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
-    
-    - name: Set AKS context
-      uses: azure/aks-set-context@v3
-      with:
-        resource-group: ${{ env.AKS_RESOURCE_GROUP }}
-        cluster-name: ${{ env.AKS_CLUSTER_NAME }}
-    
-    - name: Rollback deployment
-      run: |
-        kubectl rollout undo deployment/api-gateway -n ${{ env.NAMESPACE }}
-        kubectl rollout undo deployment/user-service -n ${{ env.NAMESPACE }}
-        kubectl rollout undo deployment/product-service -n ${{ env.NAMESPACE }}
-        kubectl rollout undo deployment/order-service -n ${{ env.NAMESPACE }}
-        kubectl rollout undo deployment/payment-service -n ${{ env.NAMESPACE }}
-    
-    - name: Verify rollback
-      run: |
-        kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }}
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          subscription-id: 13867de7-44ee-4b9a-9034-7401ac01eea2
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+      - name: Rollback deployment
+        run: |
+          kubectl rollout undo deployment/api-gateway -n ${{ env.NAMESPACE }}
+          kubectl rollout undo deployment/user-service -n ${{ env.NAMESPACE }}
+          kubectl rollout undo deployment/product-service -n ${{ env.NAMESPACE }}
+          kubectl rollout undo deployment/order-service -n ${{ env.NAMESPACE }}
+          kubectl rollout undo deployment/payment-service -n ${{ env.NAMESPACE }}
+      - name: Verify rollback
+        run: |
+          kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }}
 
   notify:
     name: Send Notifications
