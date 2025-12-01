@@ -8,7 +8,7 @@ metadata:
     app: product-service
     component: business
 spec:
-  replicas: {{ .Values.productService.replicas | default 1 }}
+  replicas: {{ .Values.productService.replicaCount | default 1 }}
   selector:
     matchLabels:
       app: product-service
