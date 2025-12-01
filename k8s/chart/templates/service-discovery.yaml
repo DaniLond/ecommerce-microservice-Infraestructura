@@ -8,7 +8,7 @@ metadata:
     app: service-discovery
     component: infrastructure
 spec:
-  replicas: {{ .Values.serviceDiscovery.replicas | default 2 }}
+  replicas: {{ .Values.serviceDiscovery.replicaCount | default 2 }}
   selector:
     matchLabels:
       app: service-discovery

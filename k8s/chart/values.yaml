@@ -1,5 +1,13 @@
 
 namespace: development
+
+serviceDiscovery:
+  replicaCount: 2
+  image: ecommerceacr1202.azurecr.io/service-discovery:0.1.0
+  springProfile: dev
+  zipkinUrl: http://zipkin:9411
+  configImport: optional:configserver:http://cloud-config:9296/
+  javaOpts: -Xms512m -Xmx1Gi -XX:+UseG1GC
 # Valores por defecto para userService (dev)
 userService:
   replicaCount: 1
