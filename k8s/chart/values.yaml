@@ -10,4 +10,7 @@ userService:
   eurekaDefaultZone: http://service-discovery:8761/eureka/
   configImport: optional:configserver:http://cloud-config:9296/
   javaOpts: -Xms256m -Xmx512m -XX:+UseG1GC
+  hpa:
+    minReplicas: 1
+    maxReplicas: 8
 # Puedes agregar aquí valores por defecto para los servicios
