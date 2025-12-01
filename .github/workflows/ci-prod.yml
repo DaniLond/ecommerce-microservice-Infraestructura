@@ -45,19 +45,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set kubeconfig for GitHub Actions
-      run: |
-        mkdir -p $HOME/.kube
-        echo "${{ secrets.KUBECONFIG_PROD }}" > $HOME/.kube/config
-
-    - name: Install kubelogin
-      run: |
-        wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
-        unzip kubelogin-linux-amd64.zip
-        sudo install bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
-
-    - name: Check kubelogin version
-      run: kubelogin --version
     - name: Check database migrations
       run: |
         echo "Validating database migration scripts..."
