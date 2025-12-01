@@ -68,6 +68,9 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+      - name: Instalar kubelogin
+        run: |
+          az aks install-cli
 
       - name: Set AKS context
         uses: azure/aks-set-context@v3
@@ -129,6 +132,9 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+      - name: Instalar kubelogin
+        run: |
+          az aks install-cli
 
       - name: Set AKS context
         uses: azure/aks-set-context@v3
