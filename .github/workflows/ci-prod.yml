@@ -68,7 +68,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: promote-images
+    needs: pre-deployment-checks
     environment:
       name: production
       url: https://ecommerce.yourdomain.com
