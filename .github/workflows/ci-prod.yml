@@ -118,23 +118,22 @@ jobs:
         kubectl apply -f - <<EOF
         apiVersion: networking.istio.io/v1alpha3
         kind: VirtualService
-        metadata:
-          name: api-gateway
-          namespace: ${{ env.NAMESPACE }}
-        spec:
-          hosts:
-          - api-gateway
-          http:
-          - match:
-            - destination:
-          - name: Set kubeconfig for GitHub Actions
-            run: |
-              mkdir -p $HOME/.kube
-              echo "${{ secrets.KUBECONFIG_PROD }}" > $HOME/.kube/config
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
 
-          - name: Install kubelogin
-            run: |
-              wget https://github.com/Azure/kubelogin/releases/download/v0.0.25/kubelogin-linux-amd64.zip
+        - name: Azure Login
+          uses: azure/login@v1
+          with:
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+        - name: Set AKS context
+          uses: azure/aks-set-context@v3
+          with:
+            resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+            cluster-name: ${{ env.AKS_CLUSTER_NAME }}
               unzip kubelogin-linux-amd64.zip
               sudo mv bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
               sudo chmod +x /usr/local/bin/kubelogin
@@ -142,27 +141,23 @@ jobs:
           - name: Validate Kubernetes manifests
             run: |
               kubectl apply --dry-run=client -f k8s/prod/
-          - route:
-            - destination:
-                host: api-gateway
-                port:
-                  number: 8080
-              weight: 90
-            - destination:
-                host: api-gateway-canary
-                port:
-                  number: 8080
-              weight: 10
-        EOF
-    
-    - name: Monitor Canary - 5 minutes
-      run: |
-        echo "Monitoring canary deployment for 5 minutes..."
-        sleep 300
-        
-        # Check error rates
-        ERROR_RATE=$(kubectl exec -n monitoring deploy/prometheus -- \
-          promtool query instant 'rate(http_requests_total{status=~"5..",deployment="api-gateway-canary"}[5m])')
+
+          steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+
+          - name: Azure Login
+            uses: azure/login@v1
+            with:
+              client-id: ${{ secrets.AZURE_CLIENT_ID }}
+              tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+              client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+          - name: Set AKS context
+            uses: azure/aks-set-context@v3
+            with:
+              resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+              cluster-name: ${{ env.AKS_CLUSTER_NAME }}
         
         if (( $(echo "$ERROR_RATE > 0.01" | bc -l) )); then
           echo "High error rate detected in canary. Rolling back..."
