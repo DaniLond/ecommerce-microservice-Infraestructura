@@ -83,30 +83,12 @@ jobs:
         run: |
           kubectl get deployments,services,configmaps,secrets,pods,ingresses -n ${{ env.NAMESPACE }} -o yaml > backup-$(date +%Y%m%d-%H%M%S).yaml
 
-      - name: Canary Deployment - 10%
+      - name: Desplegar todos los servicios base
         run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          kubectl apply -f k8s/prod/canary/ -n ${{ env.NAMESPACE }}
-          kubectl set image deployment/api-gateway-canary api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl rollout status deployment/api-gateway-canary -n ${{ env.NAMESPACE }} --timeout=5m
-          kubectl apply -f k8s/prod/virtualservice-canary-10.yaml -n ${{ env.NAMESPACE }}
-
-      - name: Increase Canary to 50%
+          kubectl apply -f k8s/services/ -n ${{ env.NAMESPACE }}
+      - name: Desplegar manifiestos específicos de producción
         run: |
-          kubectl apply -f k8s/prod/virtualservice-canary-50.yaml -n ${{ env.NAMESPACE }}
-          sleep 300
-
-      - name: Complete Canary Deployment - 100%
-        run: |
-          VERSION=${{ github.event.inputs.version || github.ref_name }}
-          kubectl set image deployment/api-gateway api-gateway=${{ env.REGISTRY }}/${{ github.repository }}/api-gateway:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl set image deployment/user-service user-service=${{ env.REGISTRY }}/${{ github.repository }}/user-service:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl set image deployment/product-service product-service=${{ env.REGISTRY }}/${{ github.repository }}/product-service:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl set image deployment/order-service order-service=${{ env.REGISTRY }}/${{ github.repository }}/order-service:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl set image deployment/payment-service payment-service=${{ env.REGISTRY }}/${{ github.repository }}/payment-service:$VERSION -n ${{ env.NAMESPACE }}
-          kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=10m
-          kubectl apply -f k8s/prod/virtualservice-main-100.yaml -n ${{ env.NAMESPACE }}
-          kubectl scale deployment api-gateway-canary --replicas=0 -n ${{ env.NAMESPACE }}
+          kubectl apply -f k8s/prod/ -n ${{ env.NAMESPACE }}
 
       - name: Post-Deployment Validation
         run: |
